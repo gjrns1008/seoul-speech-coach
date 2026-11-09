@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#2f4fd1">
+<title>서울말 교정기</title>
+<style>
+:root{--blue:#2f4fd1;--bg:#f3f5fb;--ink:#1c2333;--muted:#6a7388;--line:#e3e7f1;--ok:#13885a;--bad:#d23c3c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Malgun Gothic",sans-serif}
+.wrap{max-width:760px;margin:auto;padding:18px 14px 60px}
+header{background:linear-gradient(120deg,#1f3590,#4a6be0);color:#fff;border-radius:18px;padding:20px 22px;margin-bottom:14px}
+header h1{margin:0 0 4px;font-size:26px}header p{margin:0;color:#dfe6ff;font-size:14px}
+nav{display:flex;gap:8px;margin-bottom:14px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:5}
+nav button{flex:1;border:1px solid var(--line);background:#fff;border-radius:12px;padding:11px 6px;font:inherit;font-weight:650;color:var(--muted);cursor:pointer}
+nav button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+textarea,select{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;color:var(--ink);background:#fff}
+textarea{min-height:92px;resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{border:0;border-radius:11px;padding:11px 16px;font:inherit;font-weight:650;cursor:pointer;background:var(--blue);color:#fff}
+.btn.sec{background:#e9edfb;color:#2b3f9e}.btn.rec{background:#d23c3c}
+.btn:disabled{opacity:.5}
+.out{font-size:19px;line-height:1.8;margin-top:6px;word-break:keep-all}
+mark{background:#fff0b3;border-radius:5px;padding:0 3px}
+.chg{font-size:14px;color:var(--muted);margin:3px 0}
+.chg b{color:var(--ink)}.tag{display:inline-block;background:#eef1fb;color:#3a4fb0;border-radius:20px;padding:1px 8px;font-size:12px;margin-left:6px}
+.target{font-size:24px;line-height:1.7;margin:10px 0;word-break:keep-all}
+.ok{color:var(--ok)}.bad{color:var(--bad);text-decoration:underline wavy}
+.score{font-size:40px;font-weight:800;color:var(--blue)}
+.muted{color:var(--muted);font-size:14px}
+.notice{background:#fff8e6;border:1px solid #f1deaa;color:#6d5412;border-radius:12px;padding:11px 13px;font-size:14px;margin-bottom:12px}
+.tip h3{margin:2px 0 6px;font-size:17px}.tip ul{margin:0;padding-left:20px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>서울말 교정기</h1><p>사투리 → 서울 표준어 변환 · 말하기 연습 · 억양 팁</p></header>
+<nav>
+<button data-tab="conv" class="on">① 사투리 변환</button>
+<button data-tab="prac">② 말하기 연습</button>
+<button data-tab="tips">③ 억양·발음 팁</button>
+</nav>
+<div id="nomic" class="notice hide">이 브라우저는 음성 인식을 지원하지 않습니다. 휴대폰 Chrome(안드로이드) 또는 Safari(iOS)에서 열면 마이크 기능을 쓸 수 있어요. 변환·듣기 기능은 그대로 사용 가능합니다.</div>
+
+<section id="conv">
+<div class="card">
+<b>사투리로 써 보세요 (또는 말해 보세요)</b>
+<textarea id="src" placeholder="예) 니 밥 묵었나? 와 이라노, 마이 아프다 아이가"></textarea>
+<div class="row">
+<button class="btn" id="go">서울말로 바꾸기</button>
+<button class="btn rec" id="micConv">🎤 말해서 입력</button>
+<button class="btn sec" id="ex">예시 넣기</button>
+</div>
+</div>
+<div class="card hide" id="resCard">
+<b>서울 표준어</b>
+<div class="out" id="out"></div>
+<div class="row"><button class="btn sec" id="hear">🔊 표준어로 듣기</button><button class="btn sec" id="copy">복사</button><button class="btn sec" id="toPrac">이 문장으로 연습</button></div>
+<hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+<b>바뀐 부분</b>
+<div id="chg"></div>
+</div>
+<p class="muted">규칙 기반 변환기라 흔한 경상·전라·충청 표현 위주로 바꿉니다. 모든 사투리를 완벽히 바꾸지는 못하니, 바뀐 부분을 눈으로 확인하세요. 제주·강원 사투리는 아직 거의 지원하지 않습니다.</p>
+</section>
+
+<section id="prac" class="hide">
+<div class="card">
+<b>연습 문장 고르기</b>
+<select id="cat"></select>
+<select id="sent" style="margin-top:8px"></select>
+<div class="target" id="target"></div>
+<div class="row">
+<button class="btn sec" id="listen">🔊 서울말로 듣기</button>
+<button class="btn rec" id="rec">🎤 따라 말하기</button>
+<button class="btn sec" id="slow">🐢 천천히</button>
+</div>
+</div>
+<div class="card hide" id="scoreCard">
+<div class="muted">인식된 내 말</div>
+<div id="heard" style="font-size:19px"></div>
+<div class="row" style="align-items:center"><span class="score" id="score"></span><span class="muted" id="verdict"></span></div>
+<div class="muted">초록 = 맞음, 빨강 = 다르거나 빠짐 (위 문장에 표시)</div>
+</div>
+<div class="card"><b>내 기록</b><div class="muted" id="hist">아직 연습 기록이 없어요.</div></div>
+<p class="muted">음성 인식은 “글자”로 변환된 결과를 비교합니다. 인식기가 억양 자체를 평가하지는 않으니, 점수보다 서울말 음성을 듣고 따라 하는 것이 핵심입니다.</p>
+</section>
+
+<section id="tips" class="hide">
+<div class="card tip"><h3>서울말 말하기 기본</h3><ul>
+<li>문장 끝을 크게 올리거나 내리지 말고, 의문문은 끝 음절만 가볍게 올립니다. (뭐 해?↗)</li>
+<li>높낮이를 과하게 주기보다 문장 전체를 비교적 평평하게, 강세는 약하게 말합니다.</li>
+<li>“-요” 어미를 또렷이 붙이면 훨씬 자연스러운 서울말이 됩니다.</li>
+</ul></div>
+<div class="card tip"><h3>경상도 → 서울말에서 자주 틀리는 것</h3><ul>
+<li>ㅓ와 ㅡ 구분: 음식(으-ㅁ식), 은행, 그림 — “엄식·언행”으로 소리 나지 않게.</li>
+<li>ㅅ과 ㅆ 구분: 쌀 ≠ 살, 쏘다 ≠ 소다.</li>
+<li>어미: -노/-나/-데이 → -어/-야, -입니꺼 → -입니까.</li>
+</ul></div>
+<div class="card tip"><h3>전라도 → 서울말</h3><ul>
+<li>-랑께/-당께/-잉 → -라니까/-다니까 (또는 생략)</li>
+<li>어휘: 거시기 → 그것/그거, 겁나·허벌나게 → 엄청, 시방 → 지금</li>
+</ul></div>
+<div class="card tip"><h3>충청도 → 서울말</h3><ul>
+<li>-유/-슈 → -요/-어요, -는겨 → -는 거야</li>
+<li>말이 느리게 들리니, 문장 끝을 조금 짧고 분명하게 맺기.</li>
+</ul></div>
+<div class="card tip"><h3>연습 방법 (추천)</h3><ul>
+<li>하루 5문장: 듣기 → 따라 말하기 → 점수 확인 → 틀린 글자만 다시.</li>
+<li>휴대폰으로 내 목소리를 녹음해 서울 아나운서 음성과 번갈아 들어 보세요.</li>
+</ul></div>
+</section>
+</div>
+
+<script>
+/* ---------- 사투리 → 표준어 규칙 ---------- */
+const RULES=[
+ // [정규식, 치환, 분류]
+ [/(^|\s)니가/g,'$1네가','경상'],
+ [/(^|\s)니(?=\s|는|도|한테|랑)/g,'$1너','경상'],
+ [/느그/g,'너희','경상'],
+ [/(뭐|머) ?하노/g,'뭐 해','경상'],
+ [/(했|았|었)심더/g,'$1습니다','경상'],
+ [/니더(?=[?!.\s]|$)/g,'니다','경상'],
+ [/니꺼(?=[?!.\s]|$)/g,'니까','경상'],
+ [/묵었나/g,'먹었어','경상'],
+ [/뭇나/g,'먹었어','경상'],
+ [/묵자/g,'먹자','경상'],
+ [/묵었/g,'먹었','경상'],
+ [/(^|\s)와 이라노/g,'$1왜 그래','경상'],
+ [/(^|\s)와 그라노/g,'$1왜 그래','경상'],
+ [/(^|\s)와 저라노/g,'$1왜 저래','경상'],
+ [/이라노/g,'그래','경상'],
+ [/그라노/g,'그래','경상'],
+ [/(^|\s)그랴(?=[?!.\s]|$)/g,'$1그래','충청'],
+ [/(^|\s)와(?=\s?[?])/g,'$1왜','경상'],
+ [/(^|\s)와(?=\s(그|이|저|안|저렇))/g,'$1왜','경상'],
+ [/우짜노|우야노/g,'어쩌지','경상'],
+ [/머라카노|뭐라카노/g,'뭐라고 하는 거야','경상'],
+ [/라카이/g,'라니까','경상'],
+ [/다 아이가/g,'잖아','경상'],
+ [/(^|\s)아이다(?=[.!?\s]|$)/g,'$1아니야','경상'],
+ [/(^|\s)하모(?=[.!?\s]|$)/g,'$1그럼','경상'],
+ [/맞나(?=[?]|$)/g,'그래','경상'],
+ [/(^|\s)마이(?=\s|[?!.]|$)/g,'$1많이','경상'],
+ [/쪼매|쪼깨|쪼끔/g,'조금','경상'],
+ [/퍼뜩/g,'빨리','경상'],
+ [/억수로/g,'엄청','경상'],
+ [/정구지/g,'부추','경상'],
+ [/어무이/g,'어머니','경상'],
+ [/(했|았|었|겠)노(?=[?!.\s]|$)/g,'$1어','경상'],
+ [/하노(?=[?!.\s]|$)/g,'해','경상'],
+ [/(있|없|먹|보|가|오|자|사|좋|많|아프|춥|덥|쓰|주)노(?=[?!.\s]|$)/g,'$1어','경상'],
+ [/([했았었겠])나(?=\?)/g,'$1어','경상'],
+ [/([했았었있없])제(?=[?!.\s]|$)/g,'$1지','경상·전라'],
+ [/([어아해])뿌렸/g,'$1버렸','경상'],
+ [/([어아해])뿟/g,'$1버렸','경상'],
+ [/([어아해])부렀/g,'$1버렸','전라'],
+ [/([가-힣])당께/g,'$1다니까','전라'],
+ [/랑께/g,'라니까','전라'],
+ [/(그래|맞아|알았어|좋아|알겠어)잉/g,'$1','전라'],
+ [/(^|\s)잉(?=[?!.\s]|$)/g,'$1','전라'],
+ [/잖여/g,'잖아','전라'],
+ [/지라우/g,'지요','전라'],
+ [/는디/g,'는데','전라'],
+ [/인디/g,'인데','전라'],
+ [/은디/g,'은데','전라'],
+ [/워매/g,'어머','전라'],
+ [/(^|\s)아따/g,'$1아이고','전라'],
+ [/시방/g,'지금','전라'],
+ [/허벌나게/g,'엄청나게','전라'],
+ [/징하게/g,'지독하게','전라'],
+ [/겁나/g,'엄청','전라'],
+ [/거시기/g,'그거','전라'],
+ [/(했|았|었)슈(?=[?!.\s]|$)/g,'$1어요','충청'],
+ [/(있|없)슈(?=[?!.\s]|$)/g,'$1어요','충청'],
+ [/(해|가|와|먹|보|하|좋|맞|그래)유(?=[?!.\s]|$)/g,'$1요','충청'],
+ [/는 ?겨(?=[?!.\s]|$)/g,'는 거야','충청'],
+ [/은 ?겨(?=[?!.\s]|$)/g,'은 거야','충청'],
+ [/(^|\s)그려(?=[?!.\s]|$)/g,'$1그래','충청'],
+ [/뭐하(?=[는니냐세])/g,'뭐 하','띄어쓰기']
+];
+
+function convert(text){
+  let out=text;const changes=[];
+  for(const [re,rep,label] of RULES){
+    out=out.replace(re,(...a)=>{
+      const m=a[0];
+      const r=rep.replace(/\$(\d)/g,(_,i)=>(typeof a[i]==='string'?a[i]:''));
+      if(r===m) return m;
+      changes.push({from:m.trim(),to:r.trim(),label});
+      const lead=(m.match(/^\s+/)||[''])[0]; // keep leading space outside mark
+      const body=r.replace(/^\s+/,'');
+      return lead+'\u0001'+body+'\u0002';
+    });
+  }
+  return {marked:out,plain:out.replace(/[\u0001\u0002]/g,''),changes};
+}
+const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function markedToHtml(s){return esc(s).replace(/\u0001/g,'<mark>').replace(/\u0002/g,'</mark>')}
+
+/* ---------- 음성 ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR)document.getElementById('nomic').classList.remove('hide');
+function listen(onText,onState){
+  if(!SR){alert('이 브라우저는 음성 인식을 지원하지 않아요.');return}
+  const r=new SR();r.lang='ko-KR';r.interimResults=false;r.maxAlternatives=1;
+  r.onresult=e=>onText(e.results[0][0].transcript);
+  r.onerror=e=>{onState&&onState(false);alert('음성 인식 오류: '+e.error+(e.error==='not-allowed'?' (마이크 권한을 허용해 주세요)':''))};
+  r.onend=()=>onState&&onState(false);
+  onState&&onState(true);r.start();
+}
+function speak(text,rate=0.9){
+  if(!window.speechSynthesis){alert('이 브라우저는 음성 재생을 지원하지 않아요.');return}
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);u.lang='ko-KR';u.rate=rate;
+  const v=speechSynthesis.getVoices().find(v=>/ko[-_]KR/i.test(v.lang));if(v)u.voice=v;
+  speechSynthesis.speak(u);
+}
+
+/* ---------- 탭 ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  ['conv','prac','tips'].forEach(id=>document.getElementById(id).classList.toggle('hide',id!==b.dataset.tab));
+});
+
+/* ---------- 변환 탭 ---------- */
+let lastPlain='';
+function runConv(){
+  const t=document.getElementById('src').value.trim();if(!t)return;
+  const r=convert(t);lastPlain=r.plain;
+  document.getElementById('resCard').classList.remove('hide');
+  document.getElementById('out').innerHTML=markedToHtml(r.marked);
+  document.getElementById('chg').innerHTML=r.changes.length
+    ?r.changes.map(c=>`<div class="chg"><b>${esc(c.from)}</b> → <b>${esc(c.to)}</b><span class="tag">${esc(c.label)}</span></div>`).join('')
+    :'<div class="chg">바뀐 부분이 없어요. 이미 표준어이거나 아직 지원하지 않는 표현입니다.</div>';
+}
+document.getElementById('go').onclick=runConv;
+document.getElementById('ex').onclick=()=>{document.getElementById('src').value='니 밥 묵었나? 와 이라노, 마이 아프다 아이가\n시방 뭐하는겨? 겁나 좋당께';runConv()};
+document.getElementById('hear').onclick=()=>speak(lastPlain);
+document.getElementById('copy').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(lastPlain);
+const micConv=document.getElementById('micConv');
+micConv.onclick=()=>listen(t=>{document.getElementById('src').value=t;runConv()},on=>micConv.textContent=on?'🎙 듣는 중...':'🎤 말해서 입력');
+document.getElementById('toPrac').onclick=()=>{
+  const cat=document.getElementById('cat');
+  let c=[...cat.options].find(o=>o.value==='내 문장');
+  if(!c){c=new Option('내 문장','내 문장');cat.add(c)}
+  PHRASES['내 문장']=[lastPlain];cat.value='내 문장';fillSent();
+  document.querySelector('[data-tab=prac]').click();
+};
+
+/* ---------- 연습 탭 ---------- */
+const PHRASES={
+ '인사':['안녕하세요, 만나서 반갑습니다.','식사하셨어요?','오늘 날씨가 정말 좋네요.','잠깐만 기다려 주세요.'],
+ '일상':['지금 뭐 하고 있어?','밥 먹었어?','왜 그래? 무슨 일 있어?','너무 많이 아파서 병원에 가야 돼.'],
+ '카페·식당':['아이스 아메리카노 한 잔 주세요.','여기 물 좀 더 주실 수 있어요?','계산은 카드로 할게요.','이거 포장해 주세요.'],
+ '직장':['회의 자료는 내일까지 보내 드리겠습니다.','죄송하지만 다시 한번 말씀해 주시겠어요?','확인하고 바로 연락드리겠습니다.'],
+ '발음 훈련':['으슥한 음식점에서 은행 직원을 만났어요.','쌀 한 되와 살 한 근을 샀어요.','간장 공장 공장장은 강 공장장이고 된장 공장 공장장은 공 공장장이다.']
+};
+const cat=document.getElementById('cat'),sent=document.getElementById('sent');
+Object.keys(PHRASES).forEach(k=>cat.add(new Option(k,k)));
+function fillSent(){
+  sent.innerHTML='';(PHRASES[cat.value]||[]).forEach((s,i)=>sent.add(new Option(s,i)));
+  showTarget();document.getElementById('scoreCard').classList.add('hide');
+}
+function curText(){return (PHRASES[cat.value]||[])[+sent.value]||''}
+function showTarget(){document.getElementById('target').textContent=curText()}
+cat.onchange=fillSent;sent.onchange=()=>{showTarget();document.getElementById('scoreCard').classList.add('hide')};
+fillSent();
+document.getElementById('listen').onclick=()=>speak(curText(),0.95);
+document.getElementById('slow').onclick=()=>speak(curText(),0.6);
+
+const norm=s=>s.replace(/[\s.,!?~'"“”‘’]/g,'');
+function lcsMask(a,b){
+  const n=a.length,m=b.length,dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=1;i<=n;i++)for(let j=1;j<=m;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
+  const hit=new Array(n).fill(false);let i=n,j=m;
+  while(i>0&&j>0){if(a[i-1]===b[j-1]){hit[i-1]=true;i--;j--}else if(dp[i-1][j]>=dp[i][j-1])i--;else j--}
+  return {hit,len:dp[n][m]};
+}
+function grade(target,heard){
+  const a=[...norm(target)],b=[...norm(heard)];
+  const {hit,len}=lcsMask(a,b);
+  const score=a.length?Math.round(len/Math.max(a.length,b.length)*100):0;
+  let k=0,html='';
+  for(const ch of target){
+    if(/[\s.,!?~'"“”‘’]/.test(ch))html+=esc(ch);
+    else{html+=`<span class="${hit[k]?'ok':'bad'}">${esc(ch)}</span>`;k++}
+  }
+  return {score,html};
+}
+const rec=document.getElementById('rec');
+rec.onclick=()=>listen(text=>{
+  const t=curText(),g=grade(t,text);
+  document.getElementById('target').innerHTML=g.html;
+  document.getElementById('heard').textContent=text;
+  document.getElementById('score').textContent=g.score+'점';
+  document.getElementById('verdict').textContent=g.score>=90?'아주 좋아요!':g.score>=70?'좋아요. 빨간 글자만 다시!':'서울말 음성을 한 번 더 듣고 따라 해 보세요.';
+  document.getElementById('scoreCard').classList.remove('hide');
+  saveHist(g.score);
+},on=>rec.textContent=on?'🎙 듣는 중...':'🎤 따라 말하기');
+
+function saveHist(score){
+  const h=JSON.parse(localStorage.getItem('seoul_hist')||'[]');
+  h.push({t:Date.now(),score});localStorage.setItem('seoul_hist',JSON.stringify(h.slice(-200)));
+  renderHist();
+}
+function renderHist(){
+  const h=JSON.parse(localStorage.getItem('seoul_hist')||'[]');if(!h.length)return;
+  const last=h.slice(-10),avg=Math.round(last.reduce((s,x)=>s+x.score,0)/last.length);
+  document.getElementById('hist').textContent=`총 ${h.length}회 연습 · 최근 ${last.length}회 평균 ${avg}점 · 최근 점수: ${last.map(x=>x.score).join(', ')}`;
+}
+renderHist();
+</script>
+</body>
+</html>
