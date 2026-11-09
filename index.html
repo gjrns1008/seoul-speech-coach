@@ -41,7 +41,8 @@ mark{background:#fff0b3;border-radius:5px;padding:0 3px}
 <nav>
 <button data-tab="conv" class="on">① 사투리 변환</button>
 <button data-tab="prac">② 말하기 연습</button>
-<button data-tab="tips">③ 억양·발음 팁</button>
+<button data-tab="pitch">③ 억양 교정</button>
+<button data-tab="tips">④ 팁</button>
 </nav>
 <div id="nomic" class="notice hide">이 브라우저는 음성 인식을 지원하지 않습니다. 휴대폰 Chrome(안드로이드) 또는 Safari(iOS)에서 열면 마이크 기능을 쓸 수 있어요. 변환·듣기 기능은 그대로 사용 가능합니다.</div>
 
@@ -86,6 +87,28 @@ mark{background:#fff0b3;border-radius:5px;padding:0 3px}
 </div>
 <div class="card"><b>내 기록</b><div class="muted" id="hist">아직 연습 기록이 없어요.</div></div>
 <p class="muted">음성 인식은 “글자”로 변환된 결과를 비교합니다. 인식기가 억양 자체를 평가하지는 않으니, 점수보다 서울말 음성을 듣고 따라 하는 것이 핵심입니다.</p>
+</section>
+
+<section id="pitch" class="hide">
+<div class="card">
+<b>억양 비교: 내 목소리 vs 서울말 기준 음성</b>
+<select id="pcat"></select>
+<select id="psent" style="margin-top:8px"></select>
+<div class="target" id="ptarget"></div>
+<div class="row">
+<button class="btn sec" id="pref">🔊 기준 음성 듣기</button>
+<button class="btn rec" id="prec">🎤 녹음 시작</button>
+<button class="btn sec" id="pplay" disabled>▶ 내 녹음 듣기</button>
+</div>
+<div class="muted" id="pstat" style="margin-top:8px">① 기준 음성을 먼저 들어 보세요 ② 녹음 시작 → 문장을 말한 뒤 다시 누르면 종료됩니다.</div>
+</div>
+<div class="card hide" id="pres">
+<canvas id="pcv" width="720" height="260" style="width:100%;background:#fafbff;border:1px solid var(--line);border-radius:12px"></canvas>
+<div class="muted" style="margin:6px 0"><span style="color:#2f4fd1">━</span> 서울말 기준 &nbsp; <span style="color:#d23c3c">━</span> 내 목소리 · 높이는 각자 음역대를 맞춘 상대 높낮이(반음)입니다.</div>
+<div class="row" style="align-items:center"><span class="score" id="pscore"></span><span class="muted" id="pverdict"></span></div>
+<div id="pdet"></div>
+</div>
+<p class="muted">기준 음성은 합성 음성이므로 “정답 억양”이 아니라 서울 표준 억양의 <b>예시</b>입니다. 말하는 속도가 달라도 모양을 비교하도록 시간축을 자동 정렬(DTW)합니다. 조용한 곳에서 녹음하세요.</p>
 </section>
 
 <section id="tips" class="hide">
@@ -223,7 +246,7 @@ function speak(text,rate=0.9){
 /* ---------- 탭 ---------- */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  ['conv','prac','tips'].forEach(id=>document.getElementById(id).classList.toggle('hide',id!==b.dataset.tab));
+  ['conv','prac','pitch','tips'].forEach(id=>document.getElementById(id).classList.toggle('hide',id!==b.dataset.tab));
 });
 
 /* ---------- 변환 탭 ---------- */
@@ -313,6 +336,121 @@ function renderHist(){
   document.getElementById('hist').textContent=`총 ${h.length}회 연습 · 최근 ${last.length}회 평균 ${avg}점 · 최근 점수: ${last.map(x=>x.score).join(', ')}`;
 }
 renderHist();
+/* ---------- 억양(피치) 분석 ---------- */
+let MAP=[];
+fetch('index_map.json').then(r=>r.json()).then(m=>{MAP=m;pFill()}).catch(()=>{document.getElementById('pstat').textContent='기준 음성 데이터를 불러오지 못했어요. (index_map.json / audio 폴더 필요)'});
+const pcat=document.getElementById('pcat'),psent=document.getElementById('psent');
+function pFill(){const cats=[...new Set(MAP.map(x=>x.cat))];pcat.innerHTML='';cats.forEach(c=>pcat.add(new Option(c,c)));pCat()}
+function pCat(){psent.innerHTML='';MAP.filter(x=>x.cat===pcat.value).forEach(x=>psent.add(new Option(x.text,x.i)));pShow()}
+function pCur(){return MAP.find(x=>x.i==psent.value)}
+function pShow(){const c=pCur();document.getElementById('ptarget').textContent=c?c.text:'';document.getElementById('pres').classList.add('hide')}
+pcat.onchange=pCat;psent.onchange=pShow;
+const refUrl=c=>'audio/'+String(c.i).padStart(2,'0')+'.mp3';
+let refAudio=null;
+document.getElementById('pref').onclick=()=>{const c=pCur();if(!c)return;if(refAudio)refAudio.pause();refAudio=new Audio(refUrl(c));refAudio.play()};
+
+function pitchTrack(x,sr){
+  const frame=Math.round(sr*0.04),hop=Math.round(sr*0.01);
+  const lmin=Math.floor(sr/400),lmax=Math.floor(sr/70);
+  const out=[];let maxE=0;
+  for(let i=0;i+frame<x.length;i+=hop){let e=0;for(let j=0;j<frame;j++)e+=x[i+j]*x[i+j];if(e>maxE)maxE=e}
+  for(let i=0;i+frame+lmax<x.length;i+=hop){
+    let r0=0;for(let j=0;j<frame;j++)r0+=x[i+j]*x[i+j];
+    if(r0<maxE*0.02){out.push(0);continue}
+    let best=0,bl=0;
+    for(let l=lmin;l<=lmax;l++){let r=0;for(let j=0;j<frame;j++)r+=x[i+j]*x[i+j+l];if(r>best){best=r;bl=l}}
+    out.push(bl&&best/r0>0.45?sr/bl:0);
+  }
+  return out;
+}
+function cleanTrack(f){
+  const v=f.filter(x=>x>0).sort((a,b)=>a-b);if(!v.length)return f;
+  const med=v[Math.floor(v.length/2)];
+  const g=f.map(x=>x>0&&x>med*1.8?x/2:(x>0&&x<med/1.8?x*2:x));
+  return g.map((x,i)=>{if(!x)return 0;const w=[g[i-2],g[i-1],x,g[i+1],g[i+2]].filter(y=>y>0).sort((a,b)=>a-b);return w[Math.floor(w.length/2)]||0});
+}
+function semis(f){const v=f.filter(x=>x>0).sort((a,b)=>a-b);const med=v[Math.floor(v.length/2)]||1;return f.map(x=>x>0?12*Math.log2(x/med):null)}
+function trimVoiced(s){const a=s.findIndex(x=>x!==null);if(a<0)return[];let b=s.length-1;while(b>=0&&s[b]===null)b--;return s.slice(a,b+1)}
+function fillGaps(s){const o=[...s];for(let i=0;i<o.length;i++){if(o[i]===null){let a=i-1;while(a>=0&&o[a]===null)a--;let b=i;while(b<o.length&&o[b]===null)b++;
+  if(a<0&&b>=o.length)o[i]=0;else if(a<0)o[i]=o[b];else if(b>=o.length)o[i]=o[a];else o[i]=o[a]+(o[b]-o[a])*(i-a)/(b-a)}}return o}
+function resample(a,n){const o=[];for(let i=0;i<n;i++){const p=i*(a.length-1)/(n-1),l=Math.floor(p),h=Math.min(a.length-1,l+1);o.push(a[l]+(a[h]-a[l])*(p-l))}return o}
+function dtw(a,b){
+  const n=a.length,m=b.length,INF=1e9,D=Array.from({length:n+1},()=>new Float64Array(m+1).fill(INF));D[0][0]=0;
+  const w=Math.floor(Math.max(n,m)*0.06);
+  for(let i=1;i<=n;i++)for(let j=Math.max(1,i-w);j<=Math.min(m,i+w);j++){const c=Math.abs(a[i-1]-b[j-1]);D[i][j]=c+Math.min(D[i-1][j],D[i][j-1],D[i-1][j-1])}
+  let i=n,j=m;const path=[];
+  while(i>0&&j>0){path.push([i-1,j-1]);const k=Math.min(D[i-1][j],D[i][j-1],D[i-1][j-1]);if(k===D[i-1][j-1]){i--;j--}else if(k===D[i-1][j])i--;else j--}
+  return path.reverse();
+}
+async function decode(buf){
+  const ac=new (window.AudioContext||window.webkitAudioContext)();const d=await ac.decodeAudioData(buf.slice(0));ac.close();
+  const ch=d.getChannelData(0),step=Math.max(1,Math.floor(d.sampleRate/16000)),sr=d.sampleRate/step,x=new Float32Array(Math.floor(ch.length/step));
+  for(let i=0;i<x.length;i++)x[i]=ch[i*step];return{x,sr};
+}
+const contour=(x,sr)=>trimVoiced(semis(cleanTrack(pitchTrack(x,sr))));
+
+let myBlob=null,mediaRec=null,chunks=[];
+const prec=document.getElementById('prec');
+prec.onclick=async()=>{
+  if(mediaRec&&mediaRec.state==='recording'){mediaRec.stop();return}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    mediaRec=new MediaRecorder(stream);chunks=[];
+    mediaRec.ondataavailable=e=>chunks.push(e.data);
+    mediaRec.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());prec.textContent='🎤 녹음 시작';
+      myBlob=new Blob(chunks,{type:mediaRec.mimeType});document.getElementById('pplay').disabled=false;
+      document.getElementById('pstat').textContent='분석 중...';
+      try{await analyze()}catch(e){document.getElementById('pstat').textContent='분석 실패: '+e.message}
+    };
+    mediaRec.start();prec.textContent='⏹ 말한 뒤 눌러서 종료';
+    document.getElementById('pstat').textContent='🎙 녹음 중... 문장을 자연스럽게 말하세요.';
+  }catch(e){alert('마이크를 사용할 수 없어요: '+e.message+'\n(https 주소에서 마이크 권한을 허용해야 합니다)')}
+};
+document.getElementById('pplay').onclick=()=>{if(myBlob)new Audio(URL.createObjectURL(myBlob)).play()};
+
+function analyzeContours(rc,mc){
+  const r=resample(fillGaps(rc),200),m=resample(fillGaps(mc),200);
+  const mr=r.reduce((a,b)=>a+b)/r.length,mm=m.reduce((a,b)=>a+b)/m.length;
+  const r0=r.map(v=>v-mr),m0=m.map(v=>v-mm);
+  const path=dtw(r0,m0);
+  const mad=path.map(([i,j])=>Math.abs(r0[i]-m0[j])).reduce((a,b)=>a+b)/path.length;
+  return{r0,m0,mad,score:Math.max(0,Math.round(100-mad*28))};
+}
+async function analyze(){
+  const c=pCur();
+  const R=await decode(await (await fetch(refUrl(c))).arrayBuffer()),M=await decode(await myBlob.arrayBuffer());
+  const rc=contour(R.x,R.sr),mc=contour(M.x,M.sr);
+  if(rc.length<10||mc.length<10){document.getElementById('pstat').textContent='목소리가 잘 인식되지 않았어요. 조금 더 크게, 조용한 곳에서 다시 해 보세요.';return}
+  const {r0,m0,score}=analyzeContours(rc,mc);
+  draw(r0,m0);
+  const range=a=>Math.max(...a)-Math.min(...a),avg=a=>a.reduce((x,y)=>x+y)/a.length;
+  const rr=range(r0),mg=range(m0);
+  const endR=avg(r0.slice(-30))-avg(r0.slice(-60,-30)),endM=avg(m0.slice(-30))-avg(m0.slice(-60,-30));
+  const tips=[];
+  if(mg>rr*1.5)tips.push(`⚠ <b>높낮이 폭이 너무 커요</b> (내 ${mg.toFixed(1)}반음 / 기준 ${rr.toFixed(1)}반음). 서울말은 문장 전체를 더 평평하게, 강세를 약하게 말해 보세요.`);
+  else if(mg<rr*0.6)tips.push(`⚠ <b>너무 단조로워요</b> (내 ${mg.toFixed(1)} / 기준 ${rr.toFixed(1)}반음). 강조 단어를 조금 더 높게 말해 보세요.`);
+  else tips.push(`✅ 높낮이 폭은 기준과 비슷해요 (내 ${mg.toFixed(1)} / 기준 ${rr.toFixed(1)}반음).`);
+  if(Math.abs(endM-endR)>2.5)tips.push(`⚠ <b>문장 끝 억양이 달라요.</b> 기준은 ${endR>=0?'끝이 올라가요(↗)':'끝이 내려가요(↘)'}, 내 목소리는 ${endM>=0?'올라가요(↗)':'내려가요(↘)'}. ${endR>=0?'문장 끝을 가볍게 올려 보세요.':'문장 끝을 차분히 내려 마무리해 보세요.'}`);
+  else tips.push('✅ 문장 끝 억양 방향이 기준과 같아요.');
+  document.getElementById('pres').classList.remove('hide');
+  document.getElementById('pscore').textContent=score+'점';
+  document.getElementById('pverdict').textContent=score>=80?'억양 모양이 기준과 매우 비슷해요!':score>=60?'비슷한 편이에요. 아래 팁을 반영해 보세요.':'모양 차이가 큽니다. 기준 음성을 따라 천천히 연습해 보세요.';
+  document.getElementById('pdet').innerHTML=tips.map(t=>`<div class="chg">${t}</div>`).join('');
+  document.getElementById('pstat').textContent='분석 완료. 다시 녹음해서 점수를 올려 보세요.';
+}
+function draw(r,m){
+  const cv=document.getElementById('pcv'),g=cv.getContext('2d'),W=cv.width,H=cv.height,pad=28;
+  g.clearRect(0,0,W,H);
+  const all=[...r,...m],lo=Math.min(...all)-1,hi=Math.max(...all)+1;
+  const X=i=>pad+i*(W-pad*2)/(r.length-1),Y=v=>H-pad-(v-lo)/(hi-lo)*(H-pad*2);
+  g.strokeStyle='#e3e7f1';g.lineWidth=1;g.fillStyle='#8a93a8';g.font='12px sans-serif';
+  for(let s=Math.ceil(lo);s<=hi;s+=2){g.beginPath();g.moveTo(pad,Y(s));g.lineTo(W-pad,Y(s));g.stroke();g.fillText((s>0?'+':'')+s,2,Y(s)+4)}
+  const line=(a,col)=>{g.strokeStyle=col;g.lineWidth=3;g.lineJoin='round';g.beginPath();a.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()};
+  line(r,'#2f4fd1');line(m,'#d23c3c');
+  g.fillStyle='#8a93a8';g.fillText('시작',pad,H-8);g.fillText('끝',W-pad-10,H-8);
+}
+
 </script>
 </body>
 </html>
