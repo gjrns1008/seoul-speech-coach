@@ -42,6 +42,7 @@ mark{background:#fff0b3;border-radius:5px;padding:0 3px}
 <button data-tab="conv" class="on">① 사투리 변환</button>
 <button data-tab="prac">② 말하기 연습</button>
 <button data-tab="pitch">③ 억양 교정</button>
+<button data-tab="kbs">KBS 비교</button>
 <button data-tab="tips">④ 팁</button>
 </nav>
 <div id="nomic" class="notice hide">이 브라우저는 음성 인식을 지원하지 않습니다. 휴대폰 Chrome(안드로이드) 또는 Safari(iOS)에서 열면 마이크 기능을 쓸 수 있어요. 변환·듣기 기능은 그대로 사용 가능합니다.</div>
@@ -110,6 +111,27 @@ mark{background:#fff0b3;border-radius:5px;padding:0 3px}
 <div id="pdet"></div>
 </div>
 <p class="muted">기준 음성은 신경망 음성(Microsoft SunHi·InJoon)으로 만든 서울 표준 억양의 <b>예시</b>이며 실제 아나운서와 완전히 같지는 않을 수 있습니다. 말하는 속도가 달라도 모양을 비교하도록 시간축을 자동 정렬(DTW)합니다. 조용한 곳에서 녹음하세요.</p>
+</section>
+
+<section id="kbs" class="hide">
+<div class="card">
+<b>KBS 아나운서 억양과 비교</b>
+<div class="notice" style="margin-top:8px">KBS 방송에서 추출한 <b>억양 곡선 수치</b>만 사용합니다. 음성 파일은 이 사이트에 없고, 들을 수도 내려받을 수도 없습니다. 아래 문장을 읽고 녹음하면 내 억양과 비교해 줍니다.</div>
+<select id="kk"><option value="">모든 종류</option><option value="뉴스">뉴스 (또렷한 방송 억양)</option><option value="책">책 낭독 (차분한 억양)</option></select>
+<input type="search" id="kq" placeholder="문장 검색" style="width:100%;border:1px solid var(--line);border-radius:12px;padding:11px;font:inherit;margin-top:8px">
+<select id="ks" size="7" style="margin-top:8px;height:170px"></select>
+<div class="muted" id="kcnt"></div>
+<div class="row"><button class="btn sec" id="krnd">🎲 랜덤</button><button class="btn sec" id="kprev">◀</button><button class="btn sec" id="knext">▶</button></div>
+<div class="target" id="ktarget"></div>
+<div class="row"><button class="btn rec" id="krec">🎤 녹음 시작</button><button class="btn sec" id="kmine" disabled>▶ 내 녹음</button></div>
+<div class="muted" id="kstat" style="margin-top:8px">문장을 소리 내어 읽으세요. 기준 음성은 없으니, 문장 의미에 맞게 자연스럽게 읽으면 됩니다.</div>
+</div>
+<div class="card hide" id="kres">
+<canvas id="kcv" width="720" height="260" style="width:100%;background:#fafbff;border:1px solid var(--line);border-radius:12px"></canvas>
+<div class="muted" style="margin:6px 0"><span style="color:#2f4fd1">━</span> KBS 아나운서 &nbsp;<span style="color:#d23c3c">━</span> 내 목소리</div>
+<div class="row" style="align-items:center"><span class="score" id="kscore"></span><span class="muted" id="kverdict"></span></div>
+<div id="ktips"></div>
+</div>
 </section>
 
 <section id="tips" class="hide">
@@ -247,7 +269,7 @@ function speak(text,rate=0.9){
 /* ---------- 탭 ---------- */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  ['conv','prac','pitch','tips'].forEach(id=>document.getElementById(id).classList.toggle('hide',id!==b.dataset.tab));
+  ['conv','prac','pitch','kbs','tips'].forEach(id=>document.getElementById(id).classList.toggle('hide',id!==b.dataset.tab));
 });
 
 /* ---------- 변환 탭 ---------- */
@@ -451,6 +473,66 @@ function draw(r,m){
   line(r,'#2f4fd1');line(m,'#d23c3c');
   g.fillStyle='#8a93a8';g.fillText('시작',pad,H-8);g.fillText('끝',W-pad-10,H-8);
 }
+
+
+/* ---------- KBS 곡선 비교 (음성 없이 수치만) ---------- */
+let KB=[],KL=[],KC=null;
+fetch('kbs_contours.json').then(r=>r.json()).then(d=>{KB=d;kFilter()}).catch(()=>{document.getElementById('kstat').textContent='KBS 곡선 데이터를 불러오지 못했어요.'});
+const kEl=id=>document.getElementById(id);
+function kFilter(){
+  const k=kEl('kk').value,q=kEl('kq').value.trim();
+  KL=KB.filter(x=>(!k||x.k===k)&&(!q||x.t.includes(q)));
+  kEl('ks').innerHTML='';KL.forEach((x,i)=>kEl('ks').add(new Option(x.t+'  ('+x.d.toFixed(1)+'초)',i)));
+  kEl('kcnt').textContent=KL.length+'개 문장';
+  if(KL.length){kEl('ks').selectedIndex=0;kPick()}
+}
+function kPick(){KC=KL[+kEl('ks').value];if(!KC)return;kEl('ktarget').textContent=KC.t;kEl('kres').classList.add('hide')}
+kEl('kk').onchange=kFilter;kEl('kq').oninput=kFilter;kEl('ks').onchange=kPick;
+kEl('krnd').onclick=()=>{if(KL.length){kEl('ks').selectedIndex=Math.floor(Math.random()*KL.length);kPick()}};
+kEl('kprev').onclick=()=>{if(kEl('ks').selectedIndex>0){kEl('ks').selectedIndex--;kPick()}};
+kEl('knext').onclick=()=>{if(kEl('ks').selectedIndex<KL.length-1){kEl('ks').selectedIndex++;kPick()}};
+
+let kBlob=null,kMr=null,kCh=[];
+kEl('krec').onclick=async()=>{
+  if(kMr&&kMr.state==='recording'){kMr.stop();return}
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    kMr=new MediaRecorder(st);kCh=[];kMr.ondataavailable=e=>kCh.push(e.data);
+    kMr.onstop=async()=>{st.getTracks().forEach(t=>t.stop());kEl('krec').textContent='🎤 녹음 시작';kBlob=new Blob(kCh,{type:kMr.mimeType});kEl('kmine').disabled=false;kEl('kstat').textContent='분석 중...';
+      try{await kAnalyze()}catch(e){kEl('kstat').textContent='분석 실패: '+e.message}};
+    kMr.start();kEl('krec').textContent='⏹ 말한 뒤 눌러서 종료';kEl('kstat').textContent='🎙 녹음 중...';
+  }catch(e){alert('마이크를 사용할 수 없어요: '+e.message)}
+};
+kEl('kmine').onclick=()=>kBlob&&new Audio(URL.createObjectURL(kBlob)).play();
+async function kAnalyze(){
+  const M=await decode(await kBlob.arrayBuffer()),mc=contour(M.x,M.sr);
+  if(mc.length<10){kEl('kstat').textContent='목소리가 잘 인식되지 않았어요. 조용한 곳에서 조금 더 크게 다시 해 보세요.';return}
+  const rc=KC.c.map(v=>v/10);              // KBS 곡선(반음, 이미 평균 0)
+  const m=resample(fillGaps(mc),200),mm=m.reduce((a,b)=>a+b)/m.length,m0=m.map(v=>v-mm);
+  const r0=resample(rc,200),rm=r0.reduce((a,b)=>a+b)/r0.length,r1=r0.map(v=>v-rm);
+  const path=dtw(r1,m0),mad=path.map(([i,j])=>Math.abs(r1[i]-m0[j])).reduce((a,b)=>a+b)/path.length;
+  const score=Math.max(0,Math.round(100-mad*28));
+  draw2(kEl('kcv'),r1,m0);
+  const range=a=>Math.max(...a)-Math.min(...a),avg=a=>a.reduce((x,y)=>x+y)/a.length;
+  const R=range(r1),Mg=range(m0),er=avg(r1.slice(-30))-avg(r1.slice(-60,-30)),em=avg(m0.slice(-30))-avg(m0.slice(-60,-30));
+  const tips=[];
+  if(Mg>R*1.4)tips.push(`⚠ <b>높낮이 폭이 너무 커요</b> (내 ${Mg.toFixed(1)} / KBS ${R.toFixed(1)}반음). 강세를 줄이고 더 평평하게 말해 보세요.`);
+  else if(Mg<R*0.65)tips.push(`⚠ <b>너무 단조로워요</b> (내 ${Mg.toFixed(1)} / KBS ${R.toFixed(1)}반음). 강조할 단어를 조금 더 높게.`);
+  else tips.push(`✅ 높낮이 폭이 비슷해요 (내 ${Mg.toFixed(1)} / KBS ${R.toFixed(1)}반음).`);
+  if(Math.abs(em-er)>2.5)tips.push(`⚠ <b>문장 끝이 달라요.</b> KBS는 ${er>=0?'끝이 올라가요(↗)':'끝이 내려가요(↘)'}, 나는 ${em>=0?'올라가요(↗)':'내려가요(↘)'}. ${er>=0?'끝을 살짝 올려 보세요.':'끝을 차분히 내려 마무리하세요.'}`);
+  else tips.push('✅ 문장 끝 억양 방향이 같아요.');
+  const ratio=mc.length/KC.n;
+  if(ratio>1.4)tips.push(`⏱ KBS보다 ${Math.round((ratio-1)*100)}% 느려요.`);else if(ratio<0.7)tips.push(`⏱ KBS보다 ${Math.round((1-ratio)*100)}% 빨라요.`);
+  kEl('kres').classList.remove('hide');kEl('kscore').textContent=score+'점';
+  kEl('kverdict').textContent=score>=80?'KBS 억양과 매우 비슷해요!':score>=60?'비슷한 편이에요.':'차이가 커요. 천천히 다시 해 보세요.';
+  kEl('ktips').innerHTML=tips.map(t=>`<div class="chg">${t}</div>`).join('');kEl('kstat').textContent='분석 완료.';
+}
+function draw2(cv,r,m){const g=cv.getContext('2d'),W=cv.width,H=cv.height,pad=28;g.clearRect(0,0,W,H);
+  const all=[...r,...m],lo=Math.min(...all)-1,hi=Math.max(...all)+1,X=i=>pad+i*(W-pad*2)/(r.length-1),Y=v=>H-pad-(v-lo)/(hi-lo)*(H-pad*2);
+  g.strokeStyle='#e3e7f1';g.fillStyle='#8a93a8';g.font='12px sans-serif';
+  for(let s=Math.ceil(lo);s<=hi;s+=2){g.beginPath();g.moveTo(pad,Y(s));g.lineTo(W-pad,Y(s));g.stroke();g.fillText((s>0?'+':'')+s,2,Y(s)+4)}
+  const L=(a,c)=>{g.strokeStyle=c;g.lineWidth=3;g.lineJoin='round';g.beginPath();a.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()};
+  L(r,'#2f4fd1');L(m,'#d23c3c');g.fillStyle='#8a93a8';g.fillText('시작',pad,H-8);g.fillText('끝',W-pad-10,H-8)}
 
 </script>
 </body>
