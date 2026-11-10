@@ -94,6 +94,7 @@ mark{background:#fff0b3;border-radius:5px;padding:0 3px}
 <b>억양 비교: 내 목소리 vs 서울말 기준 음성</b>
 <select id="pcat"></select>
 <select id="psent" style="margin-top:8px"></select>
+<select id="pvoice" style="margin-top:8px"><option value="f">기준 목소리: 여성</option><option value="m">기준 목소리: 남성</option></select>
 <div class="target" id="ptarget"></div>
 <div class="row">
 <button class="btn sec" id="pref">🔊 기준 음성 듣기</button>
@@ -108,7 +109,7 @@ mark{background:#fff0b3;border-radius:5px;padding:0 3px}
 <div class="row" style="align-items:center"><span class="score" id="pscore"></span><span class="muted" id="pverdict"></span></div>
 <div id="pdet"></div>
 </div>
-<p class="muted">기준 음성은 합성 음성이므로 “정답 억양”이 아니라 서울 표준 억양의 <b>예시</b>입니다. 말하는 속도가 달라도 모양을 비교하도록 시간축을 자동 정렬(DTW)합니다. 조용한 곳에서 녹음하세요.</p>
+<p class="muted">기준 음성은 신경망 음성(Microsoft SunHi·InJoon)으로 만든 서울 표준 억양의 <b>예시</b>이며 실제 아나운서와 완전히 같지는 않을 수 있습니다. 말하는 속도가 달라도 모양을 비교하도록 시간축을 자동 정렬(DTW)합니다. 조용한 곳에서 녹음하세요.</p>
 </section>
 
 <section id="tips" class="hide">
@@ -345,7 +346,7 @@ function pCat(){psent.innerHTML='';MAP.filter(x=>x.cat===pcat.value).forEach(x=>
 function pCur(){return MAP.find(x=>x.i==psent.value)}
 function pShow(){const c=pCur();document.getElementById('ptarget').textContent=c?c.text:'';document.getElementById('pres').classList.add('hide')}
 pcat.onchange=pCat;psent.onchange=pShow;
-const refUrl=c=>'audio/'+String(c.i).padStart(2,'0')+'.mp3';
+const refUrl=c=>'audio/'+String(c.i).padStart(2,'0')+'_'+(document.getElementById('pvoice')||{value:'f'}).value+'.mp3';
 let refAudio=null;
 document.getElementById('pref').onclick=()=>{const c=pCur();if(!c)return;if(refAudio)refAudio.pause();refAudio=new Audio(refUrl(c));refAudio.play()};
 
