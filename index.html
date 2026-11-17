@@ -119,7 +119,7 @@ mark{background:#fff0b3;border-radius:5px;padding:0 3px}
 <div class="notice" style="margin-top:8px">KBS 방송에서 추출한 <b>억양 곡선 수치</b>만 사용합니다. 음성 파일은 이 사이트에 없고, 들을 수도 내려받을 수도 없습니다. 아래 문장을 읽고 녹음하면 내 억양과 비교해 줍니다.</div>
 <select id="kk"><option value="">모든 종류</option><option value="뉴스">뉴스 (또렷한 방송 억양)</option><option value="책">책 낭독 (차분한 억양)</option></select>
 <input type="search" id="kq" placeholder="문장 검색" style="width:100%;border:1px solid var(--line);border-radius:12px;padding:11px;font:inherit;margin-top:8px">
-<select id="ks" size="7" style="margin-top:8px;height:170px"></select>
+<select id="ks" class="hide"></select>
 <div class="muted" id="kcnt"></div>
 <div class="row"><button class="btn sec" id="krnd">🎲 랜덤</button><button class="btn sec" id="kprev">◀</button><button class="btn sec" id="knext">▶</button></div>
 <div class="target" id="ktarget"></div>
@@ -483,10 +483,10 @@ function kFilter(){
   const k=kEl('kk').value,q=kEl('kq').value.trim();
   KL=KB.filter(x=>(!k||x.k===k)&&(!q||x.t.includes(q)));
   kEl('ks').innerHTML='';KL.forEach((x,i)=>kEl('ks').add(new Option(x.t+'  ('+x.d.toFixed(1)+'초)',i)));
-  kEl('kcnt').textContent=KL.length+'개 문장';
+  kEl('kcnt').textContent=KL.length?'':'검색 결과가 없어요.';if(!KL.length){KC=null;kEl('ktarget').textContent='';kEl('kres').classList.add('hide')}
   if(KL.length){kEl('ks').selectedIndex=0;kPick()}
 }
-function kPick(){KC=KL[+kEl('ks').value];if(!KC)return;kEl('ktarget').textContent=KC.t;kEl('kres').classList.add('hide')}
+function kPick(){KC=KL[+kEl('ks').value];if(!KC)return;kEl('ktarget').textContent=KC.t;kEl('kcnt').textContent=(+kEl('ks').value+1)+' / '+KL.length+' 문장 · '+KC.d.toFixed(1)+'초';kEl('kres').classList.add('hide')}
 kEl('kk').onchange=kFilter;kEl('kq').oninput=kFilter;kEl('ks').onchange=kPick;
 kEl('krnd').onclick=()=>{if(KL.length){kEl('ks').selectedIndex=Math.floor(Math.random()*KL.length);kPick()}};
 kEl('kprev').onclick=()=>{if(kEl('ks').selectedIndex>0){kEl('ks').selectedIndex--;kPick()}};
